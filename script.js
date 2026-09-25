@@ -1392,6 +1392,15 @@ document.getElementById('sim-format-btn').addEventListener('click', () => {
 });
 
 /* ---------- Contagocce (EyeDropper API) ---------- */
+function isMobileDevice(){
+  if(navigator.userAgentData?.mobile !== undefined){
+    return navigator.userAgentData.mobile;
+  }
+
+  return /Android|iPhone|iPod/i.test(navigator.userAgent) ||
+  (/Macintosh/i.test(navigator.userAgent) && navigator.maxTouchPoints > 1);
+}
+
 function initEyedropper(){
   const btn = document.getElementById('eyedropper-btn');
   if(!('EyeDropper' in window)){
@@ -1416,12 +1425,13 @@ function initEyedropper(){
 
 /* ---------- Fotocamera (cattura colore) ---------- */
 let cameraStream = null;
+const CAMERA_GRANTED_KEY = 'wada-app-camera-granted';
 
 function initCameraButton(){
   const btn = document.getElementById('camera-btn');
-  const isTouch = window.matchMedia('(hover: none) and (pointer: coarse)').matches;
+  const isMobile = isMobileDevice();
   const hasCameraApi = !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
-  if(!isTouch || !hasCameraApi){
+  if(!isMobile || !hasCameraApi){
     return; // resta hidden: desktop senza touch, o browser senza supporto getUserMedia
   }
   btn.hidden = false;
@@ -1437,32 +1447,77 @@ async function openCamera(){
   errorEl.style.display = 'none';
   video.style.display = 'block';
   view.style.display = 'flex';
-  try{
-    cameraStream = await navigator.mediaDevices.getUserMedia({
-      video: { facingMode: 'environment' },
-      audio: false
-    });
+
+  /* Android/iOS: senza questi attributi il video può restare nero
+     (autoplay bloccato o apertura forzata a schermo intero). */
+  video.setAttribute('playsinline', '');
+  video.setAttribute('autoplay', '');
+  video.muted = true;
+
+  /* Se uno stream precedente è ancora attivo, lo si riusa: nessuna
+     nuova richiesta di permesso durante la stessa sessione. */
+  if(cameraStream && cameraStream.getVideoTracks().some(t => t.readyState === 'live')){
     video.srcObject = cameraStream;
+    try{ await video.play(); } catch(e){ /* riprodurrà al primo tap */ }
+    return;
+  }
+
+  try{
+    try{
+      cameraStream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: { ideal: 'environment' } },
+        audio: false
+      });
+    } catch(err){
+      /* Alcuni Android rifiutano il vincolo facingMode: si riprova senza. */
+      if(err && (err.name === 'OverconstrainedError' || err.name === 'NotReadableError' || err.name === 'AbortError')){
+        cameraStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+      } else {
+        throw err;
+      }
+    }
+    video.srcObject = cameraStream;
+    try{ await video.play(); } catch(e){ /* autoplay bloccato: il tap sul video avvia comunque la lettura */ }
+    try{ localStorage.setItem(CAMERA_GRANTED_KEY, '1'); } catch(e){ /* storage non disponibile */ }
   } catch(e){
     video.style.display = 'none';
     errorEl.style.display = 'flex';
-    errorEl.textContent = e && e.name === 'NotAllowedError'
-      ? 'Accesso alla fotocamera negato. Controlla i permessi del browser per questo sito.'
-      : 'Impossibile accedere alla fotocamera su questo dispositivo.';
+    const name = e && e.name;
+    if(name === 'NotAllowedError' || name === 'SecurityError'){
+      try{ localStorage.removeItem(CAMERA_GRANTED_KEY); } catch(_){ }
+      errorEl.textContent = window.isSecureContext === false
+        ? 'La fotocamera richiede una connessione sicura (HTTPS).'
+        : 'Accesso alla fotocamera negato. Controlla i permessi del browser per questo sito.';
+    } else if(name === 'NotFoundError' || name === 'OverconstrainedError'){
+      errorEl.textContent = 'Nessuna fotocamera disponibile su questo dispositivo.';
+    } else if(name === 'NotReadableError' || name === 'AbortError'){
+      errorEl.textContent = 'La fotocamera è in uso da un\'altra app. Chiudila e riprova.';
+    } else {
+      errorEl.textContent = 'Impossibile accedere alla fotocamera su questo dispositivo.';
+    }
   }
 }
 
 function closeCamera(){
   document.getElementById('camera-view').style.display = 'none';
+  const video = document.getElementById('camera-video');
+  if(video) video.srcObject = null;
   if(cameraStream){
     cameraStream.getTracks().forEach(t => t.stop());
     cameraStream = null;
   }
 }
 
+/* Android sospende la pagina in background: si rilascia la fotocamera
+   per non lasciarla bloccata e non ricevere uno stream "morto". */
+document.addEventListener('visibilitychange', () => {
+  if(document.hidden && cameraStream) closeCamera();
+});
+
 function sampleFromVideoTap(e){
   const video = document.getElementById('camera-video');
   const canvas = document.getElementById('camera-canvas');
+  if(video.paused){ video.play().catch(() => {}); } // Android: primo tap avvia il video se l'autoplay era bloccato
   if(!video.videoWidth || !video.videoHeight) return; // fotogramma non ancora pronto
 
   const rect = video.getBoundingClientRect();
