@@ -4,6 +4,19 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>IroiroWada</title>
+
+<!-- PWA: manifest e icone -->
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#f6f2ea" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#1b1815" media="(prefers-color-scheme: dark)">
+<meta name="mobile-web-app-capable" content="yes">
+
+<!-- iOS non legge il manifest per queste impostazioni: vanno ripetute qui -->
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="IroiroWada">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Shippori+Mincho:wght@500;700&family=Zen+Kaku+Gothic+New:wght@400;500;700&display=swap" rel="stylesheet">
@@ -15,6 +28,13 @@
 <header>
   <h1>Iroiro<span id="wada">Wada</span></h1>
   <div class="header-actions">
+    <button class="icon-btn" id="help-btn" aria-label="Rivedi il tutorial" title="Come funziona l'app">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="10"/>
+        <path d="M9.5 9a2.5 2.5 0 0 1 4.8 1c0 1.5-2.3 1.8-2.3 3.5"/>
+        <circle cx="12" cy="17" r="0.6" fill="currentColor" stroke="none"/>
+      </svg>
+    </button>
     <button class="icon-btn" id="star-btn" aria-label="Salva combinazione nei preferiti" title="Preferisci">
       <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
         <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
@@ -133,6 +153,10 @@
   </div>
   <div id="fav-list"></div>
 </aside>
+
+<div id="tutorial-overlay" style="display:none;">
+  <div id="tutorial-card" role="dialog" aria-live="polite" aria-label="Tutorial IroiroWada"></div>
+</div>
 
 <script src="script.js"></script>
 </body>

@@ -370,6 +370,7 @@ let currentPalette = null; // {chosen:{hex,name}, others:[{hex,name}...]}
 let expandedBandIndex = null; // indice della fascia ingrandita (accordion), null = nessuna
 let activeColorTag = null; // 'aka' | 'shiro' | 'kuro' | 'ao' | null (filtro nella tendina di sfoglio)
 let searchQuery = ''; // testo digitato nel campo colore, per filtrare i suggerimenti
+let showRecent = false; // true quando la tendina mostra la cronologia invece della lista completa
 
 /* ---------- Utility colore ---------- */
 function isValidHex(hex){
@@ -478,10 +479,13 @@ function renderBands(chosenHex, others){
   const chosenName = (currentPalette && currentPalette.chosen && currentPalette.chosen.hex === chosenHex)
     ? currentPalette.chosen.name
     : null;
+  const chosenWadaName = (currentPalette && currentPalette.chosen && currentPalette.chosen.hex === chosenHex)
+    ? currentPalette.chosen.wadaName
+    : null;
   const chosenDist = (currentPalette && currentPalette.chosen && currentPalette.chosen.hex === chosenHex)
     ? currentPalette.chosen.dist
     : null;
-  const all = [{hex:chosenHex, name:chosenName, dist:chosenDist}, ...others];
+  const all = [{hex:chosenHex, name:chosenName, wadaName:chosenWadaName, dist:chosenDist}, ...others];
   all.forEach((entry, i) => {
     const band = document.createElement('div');
     band.className = 'band';
@@ -489,7 +493,7 @@ function renderBands(chosenHex, others){
     band.style.color = contrastText(entry.hex);
     band.tabIndex = 0;
     band.setAttribute('role', 'button');
-    band.setAttribute('aria-label', `Ingrandisci la fascia ${entry.name || entry.hex.toUpperCase()}`);
+    band.setAttribute('aria-label', `Ingrandisci la fascia ${entry.name || entry.wadaName || entry.hex.toUpperCase()}`);
     band.addEventListener('click', (e) => {
       if(e.target.closest('.band-codes')) return;
       toggleExpandBand(i);
@@ -502,11 +506,27 @@ function renderBands(chosenHex, others){
       }
     });
 
-    if(entry.name){
+    if(entry.name || entry.wadaName){
       const nameEl = document.createElement('span');
       nameEl.className = 'band-name';
-      nameEl.textContent = entry.name;
-      if(entry.dist && entry.dist >= 1){
+      nameEl.textContent = entry.name || entry.wadaName;
+
+      const showReference = entry.name && entry.wadaName && entry.wadaName !== entry.name;
+      if(showReference){
+        nameEl.appendChild(document.createElement('br'));
+        const refEl = document.createElement('span');
+        refEl.className = 'band-ref';
+        refEl.textContent = `≈ ${entry.wadaName}`;
+        refEl.title = `Nessuna combinazione Wada da ${1 + others.length} colori contiene "${entry.name}": il colore Wada di riferimento più vicino è "${entry.wadaName}"`;
+        if(entry.dist && entry.dist >= 1){
+          const deltaEl = document.createElement('span');
+          deltaEl.className = 'band-delta';
+          deltaEl.textContent = ` Δ ${Math.round(entry.dist)}`;
+          deltaEl.title = 'Differenza cromatica dal colore Wada di riferimento (distanza euclidea RGB, 0 = identico, max ~442)';
+          refEl.appendChild(deltaEl);
+        }
+        nameEl.appendChild(refEl);
+      } else if(entry.dist && entry.dist >= 1){
         const deltaEl = document.createElement('span');
         deltaEl.className = 'band-delta';
         deltaEl.textContent = ` Δ ${Math.round(entry.dist)}`;
@@ -680,6 +700,16 @@ function showEmptyMessage(msg){
   document.getElementById('simulate-toggle').disabled = true;
 }
 
+/* Verifica se un hex corrisponde esattamente a un colore Wada catalogato,
+   indipendentemente dalla dimensione di combinazione richiesta. Serve a
+   distinguere "il colore che hai chiesto" da "il colore Wada di
+   riferimento più vicino", che possono differire quando il colore
+   richiesto non compare in nessuna combinazione di quella dimensione. */
+function exactColorName(hex){
+  const found = ALL_COLORS.find(c => c.hex === hex);
+  return found ? found.name : null;
+}
+
 function applyColor(hex){
   const normalized = normalizeHex(hex);
   if(!normalized){
@@ -693,7 +723,12 @@ function applyColor(hex){
     currentPalette = null;
     return;
   }
-  currentPalette = { chosen: {hex: normalized, name: result.chosenName, dist: result.chosenDist}, others: result.others };
+  const requestedName = exactColorName(normalized);
+  currentPalette = {
+    chosen: { hex: normalized, name: requestedName, wadaName: result.chosenName, dist: result.chosenDist },
+    others: result.others
+  };
+  addRecent({ hex: normalized, name: requestedName });
   renderBands(normalized, result.others);
 }
 
@@ -709,32 +744,58 @@ function buildSwatchDropdown(){
   const dropdown = document.getElementById('swatch-dropdown');
   dropdown.innerHTML = '';
 
+  const favoriteHexes = new Set(getFavorites().map(f => f.palette.chosen.hex));
+  const recentEntries = getRecent().filter(r => !favoriteHexes.has(r.hex));
+  if(recentEntries.length === 0) showRecent = false; // cronologia svuotata (es. tutto già nei preferiti)
+
   const tagBar = document.createElement('div');
   tagBar.className = 'tag-bar';
   ['aka','shiro','kuro','ao'].forEach(tag => {
     const btn = document.createElement('button');
     btn.className = 'tag-btn';
-    btn.classList.toggle('active', activeColorTag === tag);
+    btn.classList.toggle('active', !showRecent && activeColorTag === tag);
     btn.innerHTML = `<abbr title="${TAG_LABELS[tag].title}">${TAG_LABELS[tag].abbr}</abbr>`;
     btn.addEventListener('click', (e) => {
       e.stopPropagation();
+      showRecent = false;
       activeColorTag = (activeColorTag === tag) ? null : tag;
       buildSwatchDropdown();
     });
     tagBar.appendChild(btn);
   });
+  if(recentEntries.length > 0){
+    const recentBtn = document.createElement('button');
+    recentBtn.className = 'tag-btn';
+    recentBtn.classList.toggle('active', showRecent);
+    recentBtn.setAttribute('aria-label', 'Colori cercati di recente, non ancora nei preferiti');
+    recentBtn.setAttribute('title', 'Colori cercati di recente, non ancora nei preferiti');
+    recentBtn.innerHTML = `
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M3 3v5h5"/>
+        <path d="M3.05 13A9 9 0 1 0 6 5.3L3 8"/>
+        <path d="M12 7v5l4 2"/>
+      </svg>
+    `;
+    recentBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      showRecent = !showRecent;
+      if(showRecent) activeColorTag = null;
+      buildSwatchDropdown();
+    });
+    tagBar.appendChild(recentBtn);
+  }
   dropdown.appendChild(tagBar);
 
   const list = document.createElement('div');
   list.className = 'swatch-list';
-  let colors = activeColorTag
-    ? ALL_COLORS.filter(col => classifyColorTag(col.hex) === activeColorTag)
-    : ALL_COLORS;
+  let colors = showRecent
+    ? recentEntries
+    : (activeColorTag ? ALL_COLORS.filter(col => classifyColorTag(col.hex) === activeColorTag) : ALL_COLORS);
 
   if(searchQuery){
     const q = searchQuery.toLowerCase();
     colors = colors.filter(col =>
-      col.name.toLowerCase().includes(q) || col.hex.toLowerCase().includes(q)
+      (col.name && col.name.toLowerCase().includes(q)) || col.hex.toLowerCase().includes(q)
     );
   }
 
@@ -743,7 +804,7 @@ function buildSwatchDropdown(){
     empty.className = 'fav-empty';
     empty.textContent = searchQuery
       ? 'Nessun colore corrisponde alla ricerca.'
-      : 'Nessun colore in questa categoria.';
+      : (showRecent ? 'Nessun colore recente da mostrare.' : 'Nessun colore in questa categoria.');
     list.appendChild(empty);
   }
 
@@ -752,10 +813,10 @@ function buildSwatchDropdown(){
     row.className = 'swatch-row';
     row.tabIndex = 0;
     row.setAttribute('role', 'button');
-    row.setAttribute('aria-label', `${col.name}, ${col.hex.toUpperCase()}`);
+    row.setAttribute('aria-label', `${col.name || col.hex.toUpperCase()}, ${col.hex.toUpperCase()}`);
     row.innerHTML = `
       <span class="swatch-chip" style="background:${col.hex}"></span>
-      <span class="swatch-name">${col.name}</span>
+      <span class="swatch-name">${col.name || col.hex.toUpperCase()}</span>
       <span class="swatch-hex">${col.hex.toUpperCase()}</span>
     `;
     const selectRow = () => {
@@ -775,6 +836,23 @@ function buildSwatchDropdown(){
     list.appendChild(row);
   });
   dropdown.appendChild(list);
+}
+
+/* ---------- Cronologia colori cercati ---------- */
+const RECENT_KEY = 'wada-app-recent';
+const RECENT_LIMIT = 15;
+
+function getRecent(){
+  try{ return JSON.parse(localStorage.getItem(RECENT_KEY)) || []; }
+  catch(e){ return []; }
+}
+function addRecent(entry){
+  try{
+    let recent = getRecent().filter(r => r.hex !== entry.hex);
+    recent.unshift({ hex: entry.hex, name: entry.name || null, savedAt: Date.now() });
+    if(recent.length > RECENT_LIMIT) recent = recent.slice(0, RECENT_LIMIT);
+    localStorage.setItem(RECENT_KEY, JSON.stringify(recent));
+  } catch(e){ /* storage non disponibile: la cronologia semplicemente non persiste */ }
 }
 
 /* ---------- Preferiti ---------- */
@@ -1052,7 +1130,14 @@ document.getElementById('hex-input').addEventListener('focus', (e) => {
 });
 
 document.getElementById('swatch-toggle').addEventListener('click', () => {
-  document.getElementById('swatch-dropdown').classList.toggle('open');
+  const dropdown = document.getElementById('swatch-dropdown');
+  const opening = !dropdown.classList.contains('open');
+  if(opening){
+    /* Ricostruisce sempre all'apertura: se il campo è stato svuotato dopo
+       una ricerca, evita di mostrare ancora i risultati filtrati vecchi. */
+    buildSwatchDropdown();
+  }
+  dropdown.classList.toggle('open');
 });
 document.addEventListener('click', (e) => {
   const picker = document.querySelector('.color-picker');
@@ -1062,6 +1147,11 @@ document.addEventListener('click', (e) => {
 });
 document.addEventListener('keydown', (e) => {
   if(e.key !== 'Escape') return;
+  if(document.getElementById('tutorial-overlay').style.display !== 'none'){
+    endTutorial();
+    document.getElementById('help-btn').focus();
+    return;
+  }
   const dropdown = document.getElementById('swatch-dropdown');
   if(dropdown.classList.contains('open')){
     dropdown.classList.remove('open');
@@ -1402,9 +1492,121 @@ function sampleFromVideoTap(e){
   closeCamera();
 }
 
+/* ---------- Tour guidato ---------- */
+const TUTORIAL_KEY = 'wada-app-tutorial-seen';
+let tutorialSteps = [];
+let tutorialStepIndex = 0;
+
+function getTutorialSteps(){
+  const steps = [
+    { selector: '#hex-input', title: 'Cerca un colore', text: 'Scrivi un codice hex (#a8391f), un RGB (168,57,31) oppure solo il nome di un colore Wada.' },
+    { selector: '#swatch-toggle', title: 'Sfoglia il catalogo', text: 'Scorri tutti i colori di Sanzo Wada, filtrabili per tonalità calda, chiara, scura o fredda — e ritrova qui anche i colori cercati di recente.' }
+  ];
+  if(!document.getElementById('eyedropper-btn').hidden){
+    steps.push({ selector: '#eyedropper-btn', title: 'Contagocce', text: 'Preleva un colore direttamente da qualsiasi punto dello schermo.' });
+  }
+  if(!document.getElementById('camera-btn').hidden){
+    steps.push({ selector: '#camera-btn', title: 'Fotocamera', text: 'Cattura un colore inquadrandolo con la fotocamera del dispositivo.' });
+  }
+  steps.push(
+    { selector: '.count-select', title: 'Numero di colori', text: 'Scegli se cercare combinazioni Wada da 2, 3 o 4 colori.' },
+    { selector: '#simulate-toggle', title: 'Anteprima simulata', text: 'Vedi la combinazione applicata a un\'interfaccia reale, con verifica del contrasto WCAG e correzione automatica.' },
+    { selector: '#star-btn', title: 'Salva nei preferiti', text: 'Salva la combinazione che stai vedendo per ritrovarla più tardi.' },
+    { selector: '#fav-toggle', title: 'I tuoi preferiti', text: 'Cerca, ordina e condividi le combinazioni salvate — anche con un link diretto.' }
+  );
+  return steps;
+}
+
+function startTutorial(){
+  tutorialSteps = getTutorialSteps();
+  tutorialStepIndex = 0;
+  document.getElementById('tutorial-overlay').style.display = 'block';
+  showTutorialStep();
+}
+
+function endTutorial(){
+  document.getElementById('tutorial-overlay').style.display = 'none';
+  const highlighted = document.querySelector('.tutorial-highlight');
+  if(highlighted) highlighted.classList.remove('tutorial-highlight');
+  try{ localStorage.setItem(TUTORIAL_KEY, '1'); } catch(e){ /* storage non disponibile */ }
+}
+
+function nextTutorialStep(){
+  tutorialStepIndex++;
+  if(tutorialStepIndex >= tutorialSteps.length){
+    endTutorial();
+  } else {
+    showTutorialStep();
+  }
+}
+
+function showTutorialStep(){
+  const prevHighlighted = document.querySelector('.tutorial-highlight');
+  if(prevHighlighted) prevHighlighted.classList.remove('tutorial-highlight');
+
+  const step = tutorialSteps[tutorialStepIndex];
+  const target = document.querySelector(step.selector);
+  if(!target){ nextTutorialStep(); return; } // elemento non presente in questo contesto: salta
+
+  target.classList.add('tutorial-highlight');
+  target.scrollIntoView({ block: 'center', behavior: 'smooth' });
+
+  const card = document.getElementById('tutorial-card');
+  card.innerHTML = `
+    <p class="tutorial-progress">${tutorialStepIndex + 1} di ${tutorialSteps.length}</p>
+    <h3></h3>
+    <p></p>
+    <div class="tutorial-actions">
+      <button id="tutorial-skip" type="button">Salta</button>
+      <button id="tutorial-next" type="button">${tutorialStepIndex === tutorialSteps.length - 1 ? 'Fine' : 'Avanti'}</button>
+    </div>
+  `;
+  card.querySelector('h3').textContent = step.title;
+  card.querySelector('p').textContent = step.text;
+  document.getElementById('tutorial-skip').addEventListener('click', endTutorial);
+  document.getElementById('tutorial-next').addEventListener('click', nextTutorialStep);
+
+  requestAnimationFrame(() => positionTutorialCard(target, card));
+}
+
+function positionTutorialCard(target, card){
+  const rect = target.getBoundingClientRect();
+  const cardRect = card.getBoundingClientRect();
+  const margin = 12;
+
+  let top = rect.bottom + margin;
+  if(top + cardRect.height > window.innerHeight - margin){
+    top = rect.top - cardRect.height - margin;
+  }
+  top = Math.max(margin, Math.min(top, window.innerHeight - cardRect.height - margin));
+
+  let left = rect.left + rect.width / 2 - cardRect.width / 2;
+  left = Math.max(margin, Math.min(left, window.innerWidth - cardRect.width - margin));
+
+  card.style.top = `${top}px`;
+  card.style.left = `${left}px`;
+}
+
+document.getElementById('help-btn').addEventListener('click', startTutorial);
+document.getElementById('tutorial-overlay').addEventListener('click', (e) => {
+  if(e.target.id === 'tutorial-overlay') e.stopPropagation(); // blocca i click sul resto della pagina durante il tour
+});
+
 /* ---------- Init ---------- */
 buildSwatchDropdown();
 updateCountButtons();
 initEyedropper();
 initCameraButton();
 loadSharedPaletteFromUrl();
+let tutorialAlreadySeen = false;
+try{ tutorialAlreadySeen = localStorage.getItem(TUTORIAL_KEY) === '1'; } catch(e){ /* storage non disponibile */ }
+if(!tutorialAlreadySeen) startTutorial();
+
+if('serviceWorker' in navigator){
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('./sw.js').catch(() => {
+      /* registrazione fallita (es. contesto non supportato): l'app
+         funziona comunque normalmente, solo senza installazione/offline */
+    });
+  });
+}

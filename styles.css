@@ -265,6 +265,9 @@
     font-family:inherit;
     color:var(--ink-soft);
     cursor:pointer;
+    display:flex;
+    align-items:center;
+    justify-content:center;
   }
   .tag-btn abbr{text-decoration:none;}
   .tag-btn:hover{border-color:var(--accent-soft); color:var(--accent);}
@@ -388,6 +391,12 @@
     opacity:0.6;
     font-size:0.7rem;
     font-variant-numeric:tabular-nums;
+  }
+  .band-ref{
+    display:block;
+    font-size:0.68rem;
+    opacity:0.65;
+    margin-top:0.1rem;
   }
 
   .code-menu{
@@ -668,6 +677,66 @@
     z-index:25;
   }
   #overlay.open{opacity:1; pointer-events:auto;}
+
+  /* ---------- Tour guidato ---------- */
+  #tutorial-overlay{
+    position:fixed;
+    inset:0;
+    background:rgba(10,9,8,0.4);
+    z-index:90;
+  }
+  .tutorial-highlight{
+    outline:3px solid var(--accent);
+    outline-offset:3px;
+    border-radius:10px;
+  }
+  #tutorial-card{
+    position:fixed;
+    z-index:92;
+    width:min(280px, calc(100vw - 24px));
+    background:var(--panel);
+    border:1px solid var(--line);
+    border-radius:10px;
+    padding:0.9rem 1rem;
+    box-shadow:0 10px 30px rgba(0,0,0,0.3);
+  }
+  #tutorial-card h3{
+    font-family:'Shippori Mincho', serif;
+    font-size:1rem;
+    margin:0 0 0.35rem;
+    color:var(--ink);
+  }
+  #tutorial-card p{
+    font-size:0.85rem;
+    line-height:1.4;
+    color:var(--ink-soft);
+    margin:0 0 0.7rem;
+  }
+  .tutorial-progress{
+    font-size:0.68rem;
+    opacity:0.55;
+    margin:0 0 0.3rem !important;
+    font-variant-numeric:tabular-nums;
+  }
+  .tutorial-actions{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:0.6rem;
+  }
+  .tutorial-actions button{
+    border:1px solid var(--line);
+    background:var(--paper);
+    border-radius:8px;
+    padding:0.4rem 0.85rem;
+    font-family:inherit;
+    font-size:0.8rem;
+    color:var(--ink);
+    cursor:pointer;
+  }
+  .tutorial-actions button:hover{border-color:var(--accent-soft); color:var(--accent);}
+  #tutorial-next{background:var(--accent); border-color:var(--accent); color:#fff;}
+  #tutorial-next:hover{opacity:0.9; color:#fff;}
 
   @media (prefers-reduced-motion: reduce){
     #favorites-panel, #overlay, button.icon-btn{transition:none;}
