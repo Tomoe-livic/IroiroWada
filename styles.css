@@ -29,8 +29,6 @@
   html,body{margin:0;padding:0;height:100%; overflow:hidden;}
   html{
     background:var(--paper);
-    padding-top:env(safe-area-inset-top, 0px);
-    padding-bottom:env(safe-area-inset-bottom, 0px);
   }
   body{
     background:var(--paper);
@@ -40,6 +38,8 @@
     height:100dvh;
     min-height:100vh;
     min-height:100dvh;
+    padding-top:env(safe-area-inset-top, 0px);
+    padding-bottom:env(safe-area-inset-bottom, 0px);
     overflow-x:hidden;
   }
 
@@ -57,7 +57,7 @@
   h1{
     font-family:'Shippori Mincho', serif;
     font-weight:600;
-    font-size:clamp(1.8rem, 2.6vw, 2.1rem);
+    font-size:clamp(1.7rem, 2.6vw, 2.1rem);
     margin:0;
     letter-spacing:0.02em;
   }
@@ -106,7 +106,7 @@
   .color-picker{position:relative; display:flex; align-items:center;}
   #hex-input{
     font-family:inherit;
-    font-size:0.95rem;
+    font-size:1rem;
     padding:0.5rem 0.7rem;
     border:1px solid var(--line);
     border-radius:8px;
@@ -606,7 +606,7 @@
   }
   #fav-search{
     font-family:inherit;
-    font-size:0.85rem;
+    font-size:1rem;
     padding:0.45rem 0.6rem;
     border:1px solid var(--line);
     border-radius:8px;
