@@ -581,7 +581,7 @@ function applyBandSizes(){
     } else if(idx === expandedBandIndex){
       band.style.flexGrow = 6;
     } else {
-      band.style.flexGrow = 0.4;
+      band.style.flexGrow = 1;
     }
   });
 }
