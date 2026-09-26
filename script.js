@@ -1423,16 +1423,22 @@ function initEyedropper(){
   });
 }
 
-/* ---------- Fotocamera (cattura colore) ---------- */
+/* ---------- Fotocamera (cattura colore) ----------
+   NOTA: initCameraButton() non dipende più da isMobileDevice(). Due
+   tentativi di correggere il rilevamento "è mobile?" (prima via
+   matchMedia, poi via questa isMobileDevice basata su user-agent) non
+   hanno risolto il pulsante mancante segnalato su Samsung Internet: la
+   variabile mai messa alla prova era hasCameraApi, non isMobile. Ora il
+   pulsante compare ovunque l'API sia davvero disponibile, desktop con
+   webcam incluso — non più filtrato per tipo di dispositivo. */
 let cameraStream = null;
 const CAMERA_GRANTED_KEY = 'wada-app-camera-granted';
 
 function initCameraButton(){
   const btn = document.getElementById('camera-btn');
-  const isMobile = isMobileDevice();
   const hasCameraApi = !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
-  if(!isMobile || !hasCameraApi){
-    return; // resta hidden: desktop senza touch, o browser senza supporto getUserMedia
+  if(!hasCameraApi){
+    return; // resta hidden: solo se l'API manca davvero
   }
   btn.hidden = false;
   btn.addEventListener('click', openCamera);
