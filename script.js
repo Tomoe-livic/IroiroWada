@@ -1423,22 +1423,16 @@ function initEyedropper(){
   });
 }
 
-/* ---------- Fotocamera (cattura colore) ----------
-   NOTA: initCameraButton() non dipende più da isMobileDevice(). Due
-   tentativi di correggere il rilevamento "è mobile?" (prima via
-   matchMedia, poi via questa isMobileDevice basata su user-agent) non
-   hanno risolto il pulsante mancante segnalato su Samsung Internet: la
-   variabile mai messa alla prova era hasCameraApi, non isMobile. Ora il
-   pulsante compare ovunque l'API sia davvero disponibile, desktop con
-   webcam incluso — non più filtrato per tipo di dispositivo. */
+/* ---------- Fotocamera (cattura colore) ----------*/
 let cameraStream = null;
 const CAMERA_GRANTED_KEY = 'wada-app-camera-granted';
 
 function initCameraButton(){
   const btn = document.getElementById('camera-btn');
+  const isMobile = isMobileDevice();
   const hasCameraApi = !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
-  if(!hasCameraApi){
-    return; // resta hidden: solo se l'API manca davvero
+  if(!isMobile || !hasCameraApi) {
+    return; // resta hidden: desktop senza touch, o browser senza supporto getUserMedia
   }
   btn.hidden = false;
   btn.addEventListener('click', openCamera);
@@ -1663,11 +1657,25 @@ let tutorialAlreadySeen = false;
 try{ tutorialAlreadySeen = localStorage.getItem(TUTORIAL_KEY) === '1'; } catch(e){ /* storage non disponibile */ }
 if(!tutorialAlreadySeen) startTutorial();
 
+
 if('serviceWorker' in navigator){
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('./sw.js').catch(() => {
+    navigator.serviceWorker.register('./sw.js').then((registration) => {
+      /* Controlla subito gli aggiornamenti: una PWA Android può restare
+         aperta a lungo e non eseguire altrimenti il controllo del worker. */
+      registration.update().catch(() => {});
+    }).catch(() => {
       /* registrazione fallita (es. contesto non supportato): l'app
          funziona comunque normalmente, solo senza installazione/offline */
     });
+  });
+
+  /* Quando il nuovo worker prende il controllo, ricarica una sola volta
+     per eseguire immediatamente il nuovo script con il supporto camera. */
+  let reloadingForServiceWorkerUpdate = false;
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if(reloadingForServiceWorkerUpdate) return;
+    reloadingForServiceWorkerUpdate = true;
+    window.location.reload();
   });
 }
