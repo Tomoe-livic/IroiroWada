@@ -1,6 +1,6 @@
 # Componenti di terze parti
 
-IroiroWada è distribuito sotto licenza **GPLv3** (vedi `LICENSE`), ma incorpora
+il codice originale IroiroWada è distribuito con tutti i diritti riservati. Questo progetto incorpora
 dati provenienti da un progetto di terze parti con una licenza diversa. Questo
 file ne dà atto, come richiesto dai termini di quella licenza.
 
@@ -41,7 +41,3 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-La compatibilità è garantita dalla natura permissiva della licenza MIT: non
-impone che le opere che la incorporano siano rilasciate con la stessa
-licenza, quindi non c'è conflitto nell'includerla in un progetto GPLv3 —
-è sufficiente, come qui, mantenerne visibile l'attribuzione.
