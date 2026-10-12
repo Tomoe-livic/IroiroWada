@@ -1,6 +1,6 @@
 # Componenti di terze parti
 
-il codice originale IroiroWada è distribuito con tutti i diritti riservati. Questo progetto incorpora
+Il codice originale IroiroWada è distribuito con tutti i diritti riservati. Questo progetto incorpora
 dati provenienti da un progetto di terze parti con una licenza diversa. Questo
 file ne dà atto, come richiesto dai termini di quella licenza.
 
