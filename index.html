@@ -50,7 +50,7 @@
 
 <div class="controls">
   <div class="field">
-    <label for="hex-input">Colore (hex, RGB o nome)</label>
+    <label for="hex-input">Colore (codice o nome)</label>
     <div class="color-picker">
       <input type="text" id="hex-input" placeholder="#a8391f, 168,57,31 o nome..." maxlength="40" autocomplete="off">
       <button id="swatch-toggle" aria-label="Sfoglia colori" title="Sfoglia colori">
@@ -97,6 +97,15 @@
       <button class="count-btn" data-count="4">4</button>
     </div>
   </div>
+
+  <div class="format-select">
+    <select id="band-format-select" aria-label="Formato dei codici nelle fasce e nell'anteprima" title="Formato dei codici">
+      <option value="HEX">HEX</option>
+      <option value="RGB">RGB</option>
+      <option value="CMYK">CMYK</option>
+      <option value="HSL">HSL</option>
+    </select>
+  </div>
 </div>
 
 <main>
@@ -107,9 +116,8 @@
 <section id="simulation-view" aria-label="Anteprima simulata" style="display:none;">
   <div class="sim-topbar">
     <div class="sim-actions">
-      <button class="sim-btn" id="sim-contrast-btn" aria-pressed="false">Verifica contrasto AA (4.5:1)</button>
+      <button class="sim-btn" id="sim-contrast-btn" aria-pressed="false" aria-label="Verifica contrasto AA (4.5:1)" title="Verifica contrasto AA (4.5:1)">Verifica AA</button>
       <button class="sim-btn" id="sim-autofix-btn" aria-pressed="false">Applica contrasto minimo</button>
-      <button class="sim-btn" id="sim-format-btn" aria-pressed="false">Formato: HEX</button>
       <button class="sim-btn" id="sim-next-btn" aria-label="Prossimo colore principale" title="Prossimo colore principale">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
           <path d="M20 11a8 8 0 0 0-14.9-4L3 10"/>

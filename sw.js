@@ -8,7 +8,7 @@
   avvio dell'app (il nuovo service worker prende controllo subito
   grazie a skipWaiting + clients.claim).
 */
-const CACHE_VERSION = 'iroirowada-v2';
+const CACHE_VERSION = 'iroirowada-v1.5';
 
 const PRECACHE_URLS = [
   './',

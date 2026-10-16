@@ -310,6 +310,28 @@
     color:#fff;
   }
   .count-btn:focus-visible{outline:2px solid var(--accent); outline-offset:2px;}
+  /* menu del formato dei codici (fasce e simulazione): stesso aspetto e altezza dei pulsanti 2/3/4, all'estrema destra */
+  .format-select{position:relative; margin-left:auto;}
+  .format-select select{
+    -webkit-appearance:none; appearance:none;
+    height:2.1rem; min-width:4.2rem; padding:0 1.6rem 0 0.7rem;
+    border:1px solid var(--line);
+    background:var(--panel);
+    border-radius:8px;
+    cursor:pointer;
+    font-size:0.9rem;
+    color:var(--ink-soft);
+  }
+  .format-select select:focus-visible{outline:2px solid var(--accent); outline-offset:2px;}
+  .format-select select option{background:var(--panel); color:var(--ink);}
+  /* freccina del menu, disegnata con i bordi così segue il colore del tema */
+  .format-select::after{
+    content:''; position:absolute; right:0.7rem; top:50%;
+    width:0.38rem; height:0.38rem;
+    border-right:1.5px solid var(--ink-soft); border-bottom:1.5px solid var(--ink-soft);
+    transform:translateY(-70%) rotate(45deg);
+    pointer-events:none;
+  }
 
   /* focus da tastiera per tutti gli elementi interattivi custom (div con tabindex) */
   .band:focus-visible{outline:3px solid #fff; outline-offset:-3px; box-shadow:0 0 0 5px rgba(0,0,0,0.35) inset;}

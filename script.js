@@ -368,6 +368,20 @@ const ALL_COLORS = (() => {
 let selectedCount = 2;
 let currentPalette = null; // {chosen:{hex,name}, others:[{hex,name}...]}
 let expandedBandIndex = null; // indice della fascia ingrandita (accordion), null = nessuna
+
+/* Formato del codice mostrato nelle fasce e nella simulazione (menu accanto ai pulsanti 2/3/4) */
+const BAND_FORMATS = ['HEX', 'RGB', 'CMYK', 'HSL'];
+let bandFormatIndex = 0;
+function setBandCodeLine(lineEl, hex){
+  const format = BAND_FORMATS[bandFormatIndex];
+  const {r,g,b} = hexToRgb(hex);
+  if(format === 'HEX') lineEl.textContent = hex.toUpperCase();
+  else if(format === 'RGB') lineEl.textContent = `RGB ${r}, ${g}, ${b}`;
+  else if(format === 'HSL') lineEl.textContent = formatHsl(hex);
+  else lineEl.textContent = `CMYK ${formatCmyk(hex)}`;
+  if(format === 'CMYK') lineEl.title = 'Conversione approssimata da RGB, senza profilo di stampa';
+  else lineEl.removeAttribute('title');
+}
 let activeColorTag = null; // 'aka' | 'shiro' | 'kuro' | 'ao' | null (filtro nella tendina di sfoglio)
 let searchQuery = ''; // testo digitato nel campo colore, per filtrare i suggerimenti
 let showRecent = false; // true quando la tendina mostra la cronologia invece della lista completa
@@ -394,6 +408,35 @@ function parseRgbString(str){
 function hexToRgb(hex){
   const n = parseInt(hex.slice(1), 16);
   return { r:(n>>16)&255, g:(n>>8)&255, b:n&255 };
+}
+/* CMYK: conversione matematica semplice da sRGB (nessun profilo di stampa
+   come FOGRA39 o SWOP), quindi un'approssimazione e non il valore di una
+   stampa reale. Valori in percentuale intera 0-100. */
+function hexToCmyk(hex){
+  const {r,g,b} = hexToRgb(hex);
+  const rn = r/255, gn = g/255, bn = b/255;
+  const k = 1 - Math.max(rn, gn, bn);
+  if(k >= 1) return { c:0, m:0, y:0, k:100 };
+  return {
+    c: Math.round((1 - rn - k) / (1 - k) * 100),
+    m: Math.round((1 - gn - k) / (1 - k) * 100),
+    y: Math.round((1 - bn - k) / (1 - k) * 100),
+    k: Math.round(k * 100)
+  };
+}
+function formatCmyk(hex){
+  const {c,m,y,k} = hexToCmyk(hex);
+  return `${c}, ${m}, ${y}, ${k}`;
+}
+/* Interpreta "0, 80, 90, 34", "cmyk(0,80,90,34)" o con % ("0%, 80%, 90%, 34%")
+   in un hex. Ritorna null se non sono 4 valori 0-100. */
+function parseCmykString(str){
+  const m = str.trim().match(/^\s*(?:cmyk\s*\()?\s*(\d{1,3}(?:\.\d+)?)\s*%?\s*[,;\s]\s*(\d{1,3}(?:\.\d+)?)\s*%?\s*[,;\s]\s*(\d{1,3}(?:\.\d+)?)\s*%?\s*[,;\s]\s*(\d{1,3}(?:\.\d+)?)\s*%?\s*\)?\s*$/i);
+  if(!m) return null;
+  const [c,mg,y,k] = [m[1],m[2],m[3],m[4]].map(v => Number(v) / 100);
+  if([c,mg,y,k].some(v => v > 1)) return null;
+  const toHex = (v) => Math.round(255 * (1 - v) * (1 - k)).toString(16).padStart(2,'0');
+  return '#' + toHex(c) + toHex(mg) + toHex(y);
 }
 function hexToHsl(hex){
   const {r,g,b} = hexToRgb(hex);
@@ -426,6 +469,55 @@ function hslToHex(h, s, l){
   else { r=c; g=0; b=x; }
   const R = Math.round((r+m)*255), G = Math.round((g+m)*255), B = Math.round((b+m)*255);
   return '#' + [R,G,B].map(v => v.toString(16).padStart(2,'0')).join('');
+}
+/* HSL in notazione CSS: hsl(12, 69%, 38%). Valori interi (tonalità in gradi,
+   saturazione e luminosità in percentuale). */
+function formatHsl(hex){
+  const {h,s,l} = hexToHsl(hex);
+  return `hsl(${Math.round(h) % 360}, ${Math.round(s*100)}%, ${Math.round(l*100)}%)`;
+}
+/* Interpreta "hsl(12, 69%, 38%)", "hsl(12 69% 38%)", "hsl(12deg, 69%, 38%)" e,
+   senza prefisso, "12, 69%, 38%". Senza il prefisso hsl( servono i simboli %
+   su saturazione e luminosità, altrimenti "12,69,38" resterebbe un RGB.
+   Con il prefisso serve anche la parentesi chiusa (evita risultati parziali
+   mentre si digita). Ritorna un hex, o null se i valori non sono validi. */
+function parseHslString(str){
+  /* gruppi: 1 prefisso "hsl(", 2 tonalità, 3 saturazione, 4 "%" della saturazione,
+     5 luminosità, 6 "%" della luminosità, 7 parentesi chiusa */
+  const m = str.trim().match(/^(hsl\s*\()?\s*(\d{1,3}(?:\.\d+)?)\s*(?:°|deg)?\s*[,\s]\s*(\d{1,3}(?:\.\d+)?)\s*(%)?\s*[,\s]\s*(\d{1,3}(?:\.\d+)?)\s*(%)?\s*(\))?$/i);
+  if(!m) return null;
+  const hasPrefix = !!m[1];
+  if(hasPrefix && !m[7]) return null;
+  if(!hasPrefix && (!m[4] || !m[6] || m[7])) return null;
+  const h = Number(m[2]), s = Number(m[3]), l = Number(m[5]);
+  if(h > 360 || s > 100 || l > 100) return null;
+  return hslToHex(h % 360, s / 100, l / 100);
+}
+/* CMYK e HSL si copiano e incollano come numeri interi, quindi l'hex che ne
+   risulta può differire di qualche unità dal colore di partenza. Se il colore
+   incollato dista così poco da un colore Wada da essere spiegato solo
+   dall'arrotondamento, lo si tratta come quel colore Wada (nome esatto, niente Δ).
+   Soglie sulla distanza euclidea RGB, ricavate dall'errore massimo di copia e
+   incolla sui 159 colori Wada (CMYK 1,73 e HSL 3,61) con un piccolo margine;
+   due colori Wada distinti distano almeno 9,9, quindi non si confondono.
+   Per HEX e RGB resta il confronto esatto: lì una differenza è reale. */
+const SNAP_TOLERANCE_CMYK = 2;
+const SNAP_TOLERANCE_HSL = 4;
+function snapToWada(hex, tolerance){
+  let best = null, bestDist = Infinity;
+  ALL_COLORS.forEach(c => {
+    const d = colorDistance(hex, c.hex);
+    if(d < bestDist){ bestDist = d; best = c; }
+  });
+  return (best && bestDist <= tolerance) ? best.hex : hex;
+}
+function parseCmykSnapped(str){
+  const hex = parseCmykString(str);
+  return hex ? snapToWada(hex, SNAP_TOLERANCE_CMYK) : null;
+}
+function parseHslSnapped(str){
+  const hex = parseHslString(str);
+  return hex ? snapToWada(hex, SNAP_TOLERANCE_HSL) : null;
 }
 /* Classificazione in 4 aggettivi cromatici giapponesi antichi (aka/kuro/shiro/ao),
    ricostruita euristicamente sulla logica luminosità/tonalità attribuita ai
@@ -536,16 +628,14 @@ function renderBands(chosenHex, others){
       band.appendChild(nameEl);
     }
 
-    const {r,g,b} = hexToRgb(entry.hex);
     const codes = document.createElement('div');
     codes.className = 'band-codes';
+    codes.dataset.hex = entry.hex;
     codes.tabIndex = 0;
     codes.setAttribute('role', 'button');
     codes.setAttribute('aria-label', `Codici colore ${entry.hex.toUpperCase()}, apri menu copia o vai al colore`);
-    codes.innerHTML = `
-      <span class="code-line code-rgb">RGB ${r}, ${g}, ${b}</span>
-      <span class="code-line code-hex">${entry.hex.toUpperCase()}</span>
-    `;
+    codes.innerHTML = '<span class="code-line code-hex"></span>';
+    setBandCodeLine(codes.firstElementChild, entry.hex);
     codes.addEventListener('click', (e) => {
       e.stopPropagation();
       openCodeMenu(codes, entry.hex);
@@ -672,12 +762,25 @@ function openCodeMenu(anchorEl, hex){
     rgbBtn.textContent = 'Copia RGB';
     rgbBtn.addEventListener('click', () => copyValue(`${r}, ${g}, ${b}`, rgbBtn));
 
+    const cmykBtn = document.createElement('button');
+    cmykBtn.className = 'code-menu-item';
+    cmykBtn.textContent = 'Copia CMYK';
+    cmykBtn.title = 'Conversione approssimata, senza profilo di stampa';
+    cmykBtn.addEventListener('click', () => copyValue(formatCmyk(hex), cmykBtn));
+
+    const hslBtn = document.createElement('button');
+    hslBtn.className = 'code-menu-item';
+    hslBtn.textContent = 'Copia HSL';
+    hslBtn.addEventListener('click', () => copyValue(formatHsl(hex), hslBtn));
+
     const hexBtn = document.createElement('button');
     hexBtn.className = 'code-menu-item';
     hexBtn.textContent = 'Copia HEX';
     hexBtn.addEventListener('click', () => copyValue(hex.toUpperCase(), hexBtn));
 
     menu.appendChild(rgbBtn);
+    menu.appendChild(cmykBtn);
+    menu.appendChild(hslBtn);
     menu.appendChild(hexBtn);
   }
 
@@ -693,6 +796,13 @@ function openCodeMenu(anchorEl, hex){
 }
 
 function showEmptyMessage(msg){
+  /* Il pulsante simulazione sta per essere disabilitato: se la simulazione è
+     aperta la chiudo, altrimenti resterebbe aperta con colori non più validi e,
+     senza il tasto Esc (assente sul telefono), senza modo di chiuderla. */
+  if(isSimulationOpen()){
+    closeSimulation();
+    document.getElementById('simulate-toggle').classList.remove('active');
+  }
   document.getElementById('bands').style.display = 'none';
   const emptyEl = document.getElementById('empty-state');
   emptyEl.textContent = msg;
@@ -713,7 +823,7 @@ function exactColorName(hex){
 function applyColor(hex){
   const normalized = normalizeHex(hex);
   if(!normalized){
-    showEmptyMessage('Codice HEX non valido. Prova con un formato tipo #a8391f.');
+    showEmptyMessage('Colore non valido. Prova con un formato tipo #a8391f, 168,57,31 o 0,80,90,34.');
     currentPalette = null;
     return;
   }
@@ -728,7 +838,7 @@ function applyColor(hex){
     chosen: { hex: normalized, name: requestedName, wadaName: result.chosenName, dist: result.chosenDist },
     others: result.others
   };
-  addRecent({ hex: normalized, name: requestedName });
+  scheduleRecent({ hex: normalized, name: requestedName });
   renderBands(normalized, result.others);
 }
 
@@ -841,6 +951,33 @@ function buildSwatchDropdown(){
 /* ---------- Cronologia colori cercati ---------- */
 const RECENT_KEY = 'wada-app-recent';
 const RECENT_LIMIT = 15;
+const RECENT_DELAY_MS = 1000;
+
+/* Mentre si digita (es. "0,80,90,34") il campo applica il colore a ogni tasto:
+   salvare ogni passaggio riempirebbe i recenti di colori intermedi sbagliati.
+   Si salva solo l'ultimo colore, dopo una pausa; l'apertura della tendina con il
+   bottone e la chiusura della pagina forzano il salvataggio in sospeso, così non
+   si perde nulla. */
+let pendingRecent = null;
+let pendingRecentTimer = null;
+function scheduleRecent(entry){
+  pendingRecent = entry;
+  clearTimeout(pendingRecentTimer);
+  pendingRecentTimer = setTimeout(flushPendingRecent, RECENT_DELAY_MS);
+}
+function flushPendingRecent(){
+  clearTimeout(pendingRecentTimer);
+  pendingRecentTimer = null;
+  if(pendingRecent){
+    const entry = pendingRecent;
+    pendingRecent = null;
+    addRecent(entry);
+  }
+}
+window.addEventListener('pagehide', flushPendingRecent);
+document.addEventListener('visibilitychange', () => {
+  if(document.visibilityState === 'hidden') flushPendingRecent();
+});
 
 function getRecent(){
   try{ return JSON.parse(localStorage.getItem(RECENT_KEY)) || []; }
@@ -1102,7 +1239,7 @@ document.getElementById('hex-input').addEventListener('input', (e) => {
   }
 
   const asHex = normalizeHex(val);
-  const asRgb = asHex ? null : parseRgbString(val);
+  const asRgb = asHex ? null : (parseRgbString(val) || parseCmykSnapped(val) || parseHslSnapped(val));
 
   if(asHex){
     applyColor(asHex);
@@ -1117,7 +1254,7 @@ document.getElementById('hex-input').addEventListener('input', (e) => {
     return;
   }
 
-  /* Non è un hex né un RGB completo: trattalo come ricerca per nome
+  /* Non è un hex né un RGB/CMYK/HSL completo: trattalo come ricerca per nome
      e mostra la tendina con i suggerimenti filtrati. */
   searchQuery = val;
   buildSwatchDropdown();
@@ -1135,6 +1272,7 @@ document.getElementById('swatch-toggle').addEventListener('click', () => {
   if(opening){
     /* Ricostruisce sempre all'apertura: se il campo è stato svuotato dopo
        una ricerca, evita di mostrare ancora i risultati filtrati vecchi. */
+    flushPendingRecent();
     buildSwatchDropdown();
   }
   dropdown.classList.toggle('open');
@@ -1178,9 +1316,11 @@ document.querySelectorAll('.count-btn').forEach(btn => {
   btn.addEventListener('click', () => {
     selectedCount = Number(btn.dataset.count);
     updateCountButtons();
-    const hexVal = document.getElementById('hex-input').value;
-    if(isValidHex(normalizeHex(hexVal) || '')){
-      applyColor(hexVal);
+    /* Il campo può contenere hex, RGB o CMYK: interpretalo come fa l'input. */
+    const fieldVal = document.getElementById('hex-input').value.trim();
+    const parsedColor = normalizeHex(fieldVal) || parseRgbString(fieldVal) || parseCmykSnapped(fieldVal) || parseHslSnapped(fieldVal);
+    if(parsedColor){
+      applyColor(parsedColor);
     }
   });
 });
@@ -1210,7 +1350,23 @@ const LOREM_SNIPPETS = [
 ];
 let simContrastVisible = false;
 let simAutoFix = false;
-let simShowHex = true;
+/* Menu del formato dei codici (fasce e anteprima simulata): aggiorna il testo
+   delle fasce senza ridisegnarle (così una fascia aperta resta aperta) e
+   ridisegna la simulazione se è aperta. */
+(function(){
+  const select = document.getElementById('band-format-select');
+  if(!select) return;
+  select.addEventListener('change', () => {
+    const index = BAND_FORMATS.indexOf(select.value);
+    if(index < 0) return;
+    bandFormatIndex = index;
+    document.querySelectorAll('.band-codes').forEach(codes => {
+      const line = codes.querySelector('.code-line');
+      if(line && codes.dataset.hex) setBandCodeLine(line, codes.dataset.hex);
+    });
+    if(isSimulationOpen()) renderSimulation();
+  });
+})();
 
 function isSimulationOpen(){
   return document.getElementById('simulation-view').style.display !== 'none';
@@ -1328,7 +1484,11 @@ function renderSimulation(){
     codeEl.tabIndex = 0;
     codeEl.setAttribute('role', 'button');
     codeEl.setAttribute('aria-label', `Codice colore ${displayHex.toUpperCase()}, apri menu copia o vai al colore`);
-    codeEl.textContent = simShowHex ? displayHex.toUpperCase() : `RGB ${r}, ${g}, ${b}`;
+    const simFormat = BAND_FORMATS[bandFormatIndex];
+    codeEl.textContent = simFormat === 'HEX' ? displayHex.toUpperCase()
+      : simFormat === 'RGB' ? `RGB ${r}, ${g}, ${b}`
+      : simFormat === 'HSL' ? formatHsl(displayHex)
+      : `CMYK ${formatCmyk(displayHex)}`;
     const openThisMenu = (e) => {
       e.stopPropagation();
       openCodeMenu(codeEl, displayHex);
@@ -1381,13 +1541,6 @@ document.getElementById('sim-autofix-btn').addEventListener('click', () => {
   const btn = document.getElementById('sim-autofix-btn');
   btn.classList.toggle('active', simAutoFix);
   btn.setAttribute('aria-pressed', String(simAutoFix));
-  renderSimulation();
-});
-document.getElementById('sim-format-btn').addEventListener('click', () => {
-  simShowHex = !simShowHex;
-  const btn = document.getElementById('sim-format-btn');
-  btn.textContent = `Formato: ${simShowHex ? 'HEX' : 'RGB'}`;
-  btn.setAttribute('aria-pressed', String(!simShowHex));
   renderSimulation();
 });
 
@@ -1554,7 +1707,7 @@ let tutorialStepIndex = 0;
 
 function getTutorialSteps(){
   const steps = [
-    { selector: '#hex-input', title: 'Cerca un colore', text: 'Scrivi un codice hex (#a8391f), un RGB (168,57,31) oppure solo il nome di un colore Wada.' },
+    { selector: '#hex-input', title: 'Cerca un colore', text: 'Scrivi un codice hex (#a8391f), un RGB (168,57,31), un CMYK in percentuale (0,80,90,34), un HSL (hsl(12, 69%, 38%)) oppure solo il nome di un colore Wada. Il CMYK è una conversione approssimata, senza profilo di stampa.' },
     { selector: '#swatch-toggle', title: 'Sfoglia il catalogo', text: 'Scorri tutti i colori di Sanzo Wada, filtrabili per tonalità calda, chiara, scura o fredda — e ritrova qui anche i colori cercati di recente.' }
   ];
   if(!document.getElementById('eyedropper-btn').hidden){
